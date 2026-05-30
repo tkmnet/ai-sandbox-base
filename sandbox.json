@@ -1,0 +1,8 @@
+{
+  "image_watch": [
+    "Containerfile",
+    "init.d",
+    "start.sh",
+    "stop.sh"
+  ]
+}
