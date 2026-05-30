@@ -3,14 +3,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 CONFIG_FILE="$SCRIPT_DIR/sandbox.json"
+HOST_INIT_DIR="$SCRIPT_DIR/init-host.d"
 ENGINE=""
 RUN_ARGS=()
+IMAGE_REGISTRY_PREFIX=""
 
 if command -v docker >/dev/null 2>&1; then
     ENGINE="docker"
 elif command -v podman >/dev/null 2>&1; then
     ENGINE="podman"
     RUN_ARGS+=(--userns=keep-id)
+    IMAGE_REGISTRY_PREFIX="localhost/"
 else
     echo "docker or podman is required." >&2
     exit 1
@@ -92,7 +95,9 @@ IMAGE_HASH="$(hash_image_inputs)"
 SHORT_IMAGE_HASH="${IMAGE_HASH:0:12}"
 
 CONTAINER_NAME="${SAFE_PATH}-${SHORT_HASH}"
-IMAGE_NAME="${SAFE_PATH}-${SHORT_HASH}-${SHORT_IMAGE_HASH}:latest"
+IMAGE_REPOSITORY_PREFIX="${SAFE_PATH}-${SHORT_HASH}"
+IMAGE_REPOSITORY="${IMAGE_REPOSITORY_PREFIX}-${SHORT_IMAGE_HASH}"
+IMAGE_NAME="${IMAGE_REGISTRY_PREFIX}${IMAGE_REPOSITORY}:latest"
 HOME_DIR="$SCRIPT_DIR/home"
 CONTAINER_HOME="/home/ai"
 IMAGE_HASH_LABEL="local.sandbox.image-hash"
@@ -113,6 +118,41 @@ exists_image() {
     "$ENGINE" image inspect "$IMAGE_NAME" >/dev/null 2>&1
 }
 
+run_host_init() {
+    if [ ! -d "$HOST_INIT_DIR" ]; then
+        return 0
+    fi
+
+    while IFS= read -r -d '' script_path; do
+        SANDBOX_DIR="$SCRIPT_DIR" \
+            SANDBOX_HOME_DIR="$HOME_DIR" \
+            SANDBOX_CONTAINER_HOME="$CONTAINER_HOME" \
+            bash "$script_path"
+    done < <(find "$HOST_INIT_DIR" -maxdepth 1 -type f -name '*.sh' -print0 | sort -z)
+}
+
+cleanup_old_images() {
+    "$ENGINE" images --format '{{.Repository}}:{{.Tag}}' | while IFS= read -r image_ref; do
+        case "$image_ref" in
+            "<none>:<none>"|"$IMAGE_NAME")
+                continue
+                ;;
+        esac
+
+        repository="${image_ref%:*}"
+        repository_basename="${repository##*/}"
+        if [ "$repository_basename" = "$IMAGE_REPOSITORY" ]; then
+            continue
+        fi
+
+        case "$repository_basename" in
+            "$IMAGE_REPOSITORY_PREFIX"-*)
+                "$ENGINE" rmi "$image_ref" >/dev/null 2>&1 || true
+                ;;
+        esac
+    done
+}
+
 if ! exists_image; then
     "$ENGINE" build \
         --label "$IMAGE_HASH_LABEL=$IMAGE_HASH" \
@@ -121,6 +161,7 @@ if ! exists_image; then
         -t "$IMAGE_NAME" \
         -f "$SCRIPT_DIR/Containerfile" \
         "$SCRIPT_DIR"
+    cleanup_old_images
 fi
 
 if exists_container && [ "$(container_image_hash)" != "$IMAGE_HASH" ]; then
@@ -131,6 +172,7 @@ mkdir -p "$HOME_DIR"
 if [ -z "$(find "$HOME_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
     "$ENGINE" run "${RUN_ARGS[@]}" --rm --entrypoint tar "$IMAGE_NAME" -C "$CONTAINER_HOME" -cf - . \
         | tar -C "$HOME_DIR" -xf -
+    run_host_init
 fi
 
 if ! exists_container; then

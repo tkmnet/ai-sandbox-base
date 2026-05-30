@@ -1,7 +1,8 @@
 {
   "image_watch": [
     "Containerfile",
-    "init.d",
+    "init-guest.d",
+    "init-host.d",
     "start.sh",
     "stop.sh"
   ]

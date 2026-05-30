@@ -21,6 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-venv \
     nodejs \
     npm \
+    bubblewrap \
+    neovim \
     && rm -rf /var/lib/apt/lists/*
 
 RUN ln -sf /usr/bin/fdfind /usr/local/bin/fd
@@ -54,11 +56,11 @@ RUN set -eux; \
 USER ${USERNAME}
 WORKDIR /workspace
 
-COPY --chown=${USERNAME}:${USERNAME} init.d/ /tmp/init.d/
-RUN for script in /tmp/init.d/*.sh; do \
+COPY --chown=${USERNAME}:${USERNAME} init-guest.d/ /tmp/init-guest.d/
+RUN for script in /tmp/init-guest.d/*.sh; do \
         bash "$script"; \
     done \
-    && rm -rf /tmp/init.d
+    && rm -rf /tmp/init-guest.d
 
 ENV PATH="/home/${USERNAME}/.local/bin:/home/${USERNAME}/bin:${PATH}"
 

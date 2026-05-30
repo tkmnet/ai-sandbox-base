@@ -60,6 +60,30 @@ home/.codex
 
 `home/` is ignored by Git.
 
+## Host Setup
+
+Build-time initialization scripts live in `init-guest.d/` and run inside the image build.
+
+Host-side initialization scripts live in `init-host.d/` and run only when `home/` is first created. The default host init script copies the host Codex auth file from:
+
+```text
+$CODEX_HOME/auth.json
+```
+
+or, when `CODEX_HOME` is not set:
+
+```text
+$HOME/.codex/auth.json
+```
+
+to:
+
+```text
+home/.codex/auth.json
+```
+
+Existing auth files in `home/` are not overwritten.
+
 ## Image Cache
 
 Images are cached and reused. `start.sh` computes an image hash from `sandbox.json` and the configured watched inputs.
@@ -70,7 +94,8 @@ The default watched inputs are:
 {
   "image_watch": [
     "Containerfile",
-    "init.d",
+    "init-guest.d",
+    "init-host.d",
     "start.sh",
     "stop.sh"
   ]
@@ -82,7 +107,8 @@ If any watched file or directory changes, `start.sh` builds a new image tag and 
 ## Repository Contents
 
 - `Containerfile`: base image and installed tools
-- `init.d/`: build-time setup scripts
+- `init-guest.d/`: build-time setup scripts that run inside the image build
+- `init-host.d/`: first-run host setup scripts for `home/`
 - `sandbox.json`: image rebuild watch configuration
 - `start.sh`: build/cache/start/enter workflow
 - `stop.sh`: stop and remove the disposable container
