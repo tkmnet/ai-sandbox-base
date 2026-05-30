@@ -3,7 +3,7 @@
     "Containerfile",
     "init-guest.d",
     "init-host.d",
-    "start.sh",
-    "stop.sh"
+    "bash",
+    "stop"
   ]
 }

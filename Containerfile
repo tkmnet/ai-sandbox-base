@@ -9,8 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     bash \
     sudo \
-    vim \
-    nano \
+    neovim \
     ripgrep \
     fd-find \
     jq \
@@ -22,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nodejs \
     npm \
     bubblewrap \
-    neovim \
+    tmux \
     && rm -rf /var/lib/apt/lists/*
 
 RUN ln -sf /usr/bin/fdfind /usr/local/bin/fd
@@ -54,7 +53,7 @@ RUN set -eux; \
     && chmod 0440 /etc/sudoers.d/${USERNAME}
 
 USER ${USERNAME}
-WORKDIR /workspace
+WORKDIR /home/ai
 
 COPY --chown=${USERNAME}:${USERNAME} init-guest.d/ /tmp/init-guest.d/
 RUN for script in /tmp/init-guest.d/*.sh; do \
