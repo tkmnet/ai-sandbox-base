@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     bash \
+    locales \
     sudo \
     neovim \
     ripgrep \
@@ -25,6 +26,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN ln -sf /usr/bin/fdfind /usr/local/bin/fd
+
+RUN sed -i 's/^# *ja_JP.UTF-8 UTF-8/ja_JP.UTF-8 UTF-8/' /etc/locale.gen \
+    && locale-gen ja_JP.UTF-8
 
 ARG USERNAME=ai
 ARG UID=1000
@@ -61,6 +65,8 @@ RUN for script in /tmp/init-guest.d/*.sh; do \
     done \
     && rm -rf /tmp/init-guest.d
 
+ENV LANG=ja_JP.UTF-8
+ENV LC_ALL=ja_JP.UTF-8
 ENV PATH="/home/${USERNAME}/.local/bin:/home/${USERNAME}/bin:${PATH}"
 
 CMD ["bash"]
