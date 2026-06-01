@@ -20,13 +20,19 @@ Start or enter the sandbox:
 ./bash
 ```
 
+Run a command inside the sandbox:
+
+```sh
+./bash codex
+```
+
 Stop and remove the sandbox container:
 
 ```sh
 ./stop
 ```
 
-When run from an interactive terminal, `bash` opens a shell inside the container. When run non-interactively, it only ensures the container is running and prints the container name.
+When run with arguments, `bash` executes that command inside the container. When run from an interactive terminal without arguments, it opens a shell inside the container. When run non-interactively without arguments, it only ensures the container is running and prints the container name.
 
 ## Container Identity
 

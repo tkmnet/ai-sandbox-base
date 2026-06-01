@@ -9,6 +9,7 @@ ENGINE=""
 RUN_ARGS=()
 MOUNT_ARGS=()
 IMAGE_REGISTRY_PREFIX=""
+COMMAND_ARGS=("$@")
 
 if command -v docker >/dev/null 2>&1; then
     ENGINE="docker"
@@ -325,6 +326,14 @@ if ! exists_container; then
         bash -lc 'trap "exit 0" TERM INT; while :; do sleep 86400 & wait "$!"; done' >/dev/null
 elif ! running_container; then
     "$ENGINE" start "$CONTAINER_NAME" >/dev/null
+fi
+
+if [ "${#COMMAND_ARGS[@]}" -gt 0 ]; then
+    if [ -t 0 ] && [ -t 1 ]; then
+        exec "$ENGINE" exec -it "$CONTAINER_NAME" "${COMMAND_ARGS[@]}"
+    fi
+
+    exec "$ENGINE" exec "$CONTAINER_NAME" "${COMMAND_ARGS[@]}"
 fi
 
 if [ -t 0 ] && [ -t 1 ]; then
