@@ -5,5 +5,19 @@
     "init-host.d",
     "bash",
     "stop"
+  ],
+  "mounts": [
+    {
+      "enabled": false,
+      "source": "../shared",
+      "target": "/home/ai/shared",
+      "readonly": false
+    },
+    {
+      "enabled": false,
+      "source": "/absolute/path/to/docs",
+      "target": "/home/ai/docs",
+      "readonly": true
+    }
   ]
 }

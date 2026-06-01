@@ -10,23 +10,23 @@ The container itself is treated as disposable. Persistent state lives in the loc
 - `jq`
 - `sha256sum` or `shasum`
 
-Podman is used automatically when Docker is not available. With Podman, `start.sh` uses `--userns=keep-id` so files under `home/` remain owned by the host user.
+Podman is used automatically when Docker is not available. With Podman, `bash` uses `--userns=keep-id` so files under `home/` remain owned by the host user.
 
 ## Usage
 
 Start or enter the sandbox:
 
 ```sh
-./start.sh
+./bash
 ```
 
 Stop and remove the sandbox container:
 
 ```sh
-./stop.sh
+./stop
 ```
 
-When run from an interactive terminal, `start.sh` opens a shell inside the container. When run non-interactively, it only ensures the container is running and prints the container name.
+When run from an interactive terminal, `bash` opens a shell inside the container. When run non-interactively, it only ensures the container is running and prints the container name.
 
 ## Container Identity
 
@@ -46,7 +46,7 @@ This keeps the name readable while avoiding collisions between directories with 
 
 ## Persistent Home
 
-`start.sh` creates `home/` if it does not exist. On first startup, it copies the image's `/home/ai` contents into `home/`, then mounts:
+`bash` creates `home/` if it does not exist. On first startup, it copies the image's `/home/ai` contents into `home/`, then mounts:
 
 ```text
 ./home -> /home/ai
@@ -59,6 +59,27 @@ home/.codex
 ```
 
 `home/` is ignored by Git.
+
+## Extra Mounts
+
+Additional host directories can be mounted by enabling entries in `sandbox.json`:
+
+```json
+{
+  "mounts": [
+    {
+      "enabled": true,
+      "source": "../shared",
+      "target": "/home/ai/shared",
+      "readonly": false
+    }
+  ]
+}
+```
+
+Relative `source` paths are resolved from the repository directory. `target` paths must be under `/home/ai`. Disabled mount entries are ignored and are not validated.
+
+At startup, `bash` prints the persistent home mount and any enabled extra mounts. If the enabled mount list changes, the existing container is recreated so the new mounts take effect.
 
 ## Host Setup
 
@@ -84,9 +105,18 @@ home/.codex/auth.json
 
 Existing auth files in `home/` are not overwritten.
 
+The host init scripts also copy host Git identity/configuration files when present:
+
+```text
+$HOME/.gitconfig
+$HOME/.config/git/config
+```
+
+to the same paths under `home/`. Existing Git config files in `home/` are not overwritten.
+
 ## Image Cache
 
-Images are cached and reused. `start.sh` computes an image hash from `sandbox.json` and the configured watched inputs.
+Images are cached and reused. `bash` computes an image hash from `sandbox.json` and the configured watched inputs.
 
 The default watched inputs are:
 
@@ -96,13 +126,13 @@ The default watched inputs are:
     "Containerfile",
     "init-guest.d",
     "init-host.d",
-    "start.sh",
-    "stop.sh"
+    "bash",
+    "stop"
   ]
 }
 ```
 
-If any watched file or directory changes, `start.sh` builds a new image tag and recreates the container. Older images are left in the local image store so the container runtime can reuse build cache.
+If any watched file or directory changes, `bash` builds a new image tag and recreates the container. Older images are left in the local image store so the container runtime can reuse build cache.
 
 ## Repository Contents
 
@@ -110,6 +140,6 @@ If any watched file or directory changes, `start.sh` builds a new image tag and 
 - `init-guest.d/`: build-time setup scripts that run inside the image build
 - `init-host.d/`: first-run host setup scripts for `home/`
 - `sandbox.json`: image rebuild watch configuration
-- `start.sh`: build/cache/start/enter workflow
-- `stop.sh`: stop and remove the disposable container
+- `bash`: build/cache/start/enter workflow
+- `stop`: stop and remove the disposable container
 - `home/`: persistent container home, ignored by Git

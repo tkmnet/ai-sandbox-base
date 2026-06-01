@@ -6,6 +6,7 @@ CONFIG_FILE="$SCRIPT_DIR/sandbox.json"
 HOST_INIT_DIR="$SCRIPT_DIR/init-host.d"
 ENGINE=""
 RUN_ARGS=()
+MOUNT_ARGS=()
 IMAGE_REGISTRY_PREFIX=""
 
 if command -v docker >/dev/null 2>&1; then
@@ -87,6 +88,126 @@ hash_image_inputs() {
     } | hash_stream
 }
 
+resolve_mount_source() {
+    local source_path="$1"
+
+    case "$source_path" in
+        /*) printf '%s\n' "$source_path" ;;
+        *) printf '%s\n' "$SCRIPT_DIR/$source_path" ;;
+    esac
+}
+
+validate_mount_target() {
+    local target_path="$1"
+
+    case "$target_path" in
+        *"/../"*|*"/..")
+            echo "Invalid mount target: $target_path" >&2
+            echo "Mount targets must not contain '..' path segments." >&2
+            exit 1
+            ;;
+    esac
+
+    case "$target_path" in
+        "$CONTAINER_HOME"/*) ;;
+        *)
+            echo "Invalid mount target: $target_path" >&2
+            echo "Mount targets must be under $CONTAINER_HOME." >&2
+            exit 1
+            ;;
+    esac
+}
+
+load_mounts() {
+    local count
+    local i
+    local enabled
+    local source_path
+    local target_path
+    local readonly
+    local absolute_source
+
+    count="$(jq '.mounts // [] | length' "$CONFIG_FILE")"
+    if [ "$count" -eq 0 ]; then
+        return 0
+    fi
+
+    for ((i = 0; i < count; i++)); do
+        enabled="$(jq -r ".mounts[$i].enabled // false" "$CONFIG_FILE")"
+        if [ "$enabled" != "true" ]; then
+            continue
+        fi
+
+        source_path="$(jq -r ".mounts[$i].source // empty" "$CONFIG_FILE")"
+        target_path="$(jq -r ".mounts[$i].target // empty" "$CONFIG_FILE")"
+        readonly="$(jq -r ".mounts[$i].readonly // false" "$CONFIG_FILE")"
+
+        if [ -z "$source_path" ] || [ -z "$target_path" ]; then
+            echo "Enabled mounts require source and target: mounts[$i]" >&2
+            exit 1
+        fi
+
+        validate_mount_target "$target_path"
+
+        case "$readonly" in
+            true|false) ;;
+            *)
+                echo "Invalid readonly value for mounts[$i]: $readonly" >&2
+                exit 1
+                ;;
+        esac
+
+        absolute_source="$(resolve_mount_source "$source_path")"
+        if [ ! -d "$absolute_source" ]; then
+            echo "Mount source directory does not exist: $absolute_source" >&2
+            exit 1
+        fi
+
+        if [ "$readonly" = "true" ]; then
+            MOUNT_ARGS+=(--volume "$absolute_source:$target_path:ro")
+        else
+            MOUNT_ARGS+=(--volume "$absolute_source:$target_path")
+        fi
+    done
+}
+
+print_mounts() {
+    echo "Mounts:"
+    echo "  $HOME_DIR -> $CONTAINER_HOME"
+
+    if [ "${#MOUNT_ARGS[@]}" -eq 0 ]; then
+        echo "  no extra mounts enabled"
+        return 0
+    fi
+
+    local i
+    local volume_spec
+    local source_path
+    local rest
+    local target_path
+    local mode
+
+    for ((i = 0; i < ${#MOUNT_ARGS[@]}; i += 2)); do
+        volume_spec="${MOUNT_ARGS[$((i + 1))]}"
+        source_path="${volume_spec%%:*}"
+        rest="${volume_spec#*:}"
+        target_path="${rest%%:*}"
+        mode="rw"
+        if [ "$rest" != "$target_path" ]; then
+            mode="${rest#*:}"
+        fi
+        echo "  $source_path -> $target_path ($mode)"
+    done
+}
+
+hash_mounts() {
+    local volume_spec
+
+    for volume_spec in "${MOUNT_ARGS[@]}"; do
+        printf '%s\n' "$volume_spec"
+    done | hash_stream
+}
+
 PATH_HASH="$(hash_path "$SCRIPT_DIR")"
 SHORT_HASH="${PATH_HASH:0:12}"
 SAFE_PATH="$(sanitize_name "$SCRIPT_DIR")"
@@ -101,6 +222,11 @@ IMAGE_NAME="${IMAGE_REGISTRY_PREFIX}${IMAGE_REPOSITORY}:latest"
 HOME_DIR="$SCRIPT_DIR/home"
 CONTAINER_HOME="/home/ai"
 IMAGE_HASH_LABEL="local.sandbox.image-hash"
+MOUNTS_HASH_LABEL="local.sandbox.mounts-hash"
+
+load_mounts
+MOUNTS_HASH="$(hash_mounts)"
+print_mounts
 
 exists_container() {
     "$ENGINE" container inspect "$CONTAINER_NAME" >/dev/null 2>&1
@@ -112,6 +238,10 @@ running_container() {
 
 container_image_hash() {
     "$ENGINE" container inspect -f "{{ index .Config.Labels \"$IMAGE_HASH_LABEL\" }}" "$CONTAINER_NAME" 2>/dev/null || true
+}
+
+container_mounts_hash() {
+    "$ENGINE" container inspect -f "{{ index .Config.Labels \"$MOUNTS_HASH_LABEL\" }}" "$CONTAINER_NAME" 2>/dev/null || true
 }
 
 exists_image() {
@@ -164,7 +294,7 @@ if ! exists_image; then
     cleanup_old_images
 fi
 
-if exists_container && [ "$(container_image_hash)" != "$IMAGE_HASH" ]; then
+if exists_container && { [ "$(container_image_hash)" != "$IMAGE_HASH" ] || [ "$(container_mounts_hash)" != "$MOUNTS_HASH" ]; }; then
     "$ENGINE" rm -f "$CONTAINER_NAME" >/dev/null
 fi
 
@@ -183,7 +313,9 @@ if ! exists_container; then
         --hostname "$CONTAINER_NAME" \
         --workdir "$CONTAINER_HOME" \
         --label "$IMAGE_HASH_LABEL=$IMAGE_HASH" \
+        --label "$MOUNTS_HASH_LABEL=$MOUNTS_HASH" \
         --volume "$HOME_DIR:$CONTAINER_HOME" \
+        "${MOUNT_ARGS[@]}" \
         "$IMAGE_NAME" \
         bash -lc 'trap "exit 0" TERM INT; while :; do sleep 86400 & wait "$!"; done' >/dev/null
 elif ! running_container; then
