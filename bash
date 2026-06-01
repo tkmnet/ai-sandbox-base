@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 CONFIG_FILE="$SCRIPT_DIR/sandbox.json"
+DEFAULT_CONFIG_FILE="$SCRIPT_DIR/_sandbox.json"
 HOST_INIT_DIR="$SCRIPT_DIR/init-host.d"
 ENGINE=""
 RUN_ARGS=()
@@ -26,8 +27,12 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Missing config: $CONFIG_FILE" >&2
-    exit 1
+    if [ ! -f "$DEFAULT_CONFIG_FILE" ]; then
+        echo "Missing config template: $DEFAULT_CONFIG_FILE" >&2
+        exit 1
+    fi
+
+    cp "$DEFAULT_CONFIG_FILE" "$CONFIG_FILE"
 fi
 
 hash_path() {

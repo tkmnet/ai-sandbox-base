@@ -62,7 +62,9 @@ home/.codex
 
 ## Extra Mounts
 
-Additional host directories can be mounted by enabling entries in `sandbox.json`:
+Additional host directories can be mounted by enabling entries in `sandbox.json`.
+If `sandbox.json` does not exist, `bash` copies it from `_sandbox.json` at startup.
+`sandbox.json` is ignored by Git so local mounts can be customized:
 
 ```json
 {
@@ -116,7 +118,7 @@ to the same paths under `home/`. Existing Git config files in `home/` are not ov
 
 ## Image Cache
 
-Images are cached and reused. `bash` computes an image hash from `sandbox.json` and the configured watched inputs.
+Images are cached and reused. `bash` computes an image hash from the local `sandbox.json` and the configured watched inputs.
 
 The default watched inputs are:
 
@@ -139,7 +141,8 @@ If any watched file or directory changes, `bash` builds a new image tag and recr
 - `Containerfile`: base image and installed tools
 - `init-guest.d/`: build-time setup scripts that run inside the image build
 - `init-host.d/`: first-run host setup scripts for `home/`
-- `sandbox.json`: image rebuild watch configuration
+- `_sandbox.json`: default image rebuild watch configuration copied to `sandbox.json`
+- `sandbox.json`: local image rebuild watch configuration, ignored by Git
 - `bash`: build/cache/start/enter workflow
 - `stop`: stop and remove the disposable container
 - `home/`: persistent container home, ignored by Git

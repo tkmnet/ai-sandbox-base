@@ -1,0 +1,24 @@
+{
+  "image_watch": [
+    "sandbox.json",
+    "Containerfile",
+    "init-guest.d",
+    "init-host.d",
+    "bash",
+    "stop"
+  ],
+  "mounts": [
+    {
+      "enabled": true,
+      "source": "/home/takami/note-storage/AI-Note",
+      "target": "/home/ai/AI-Note",
+      "readonly": false
+    },
+    {
+      "enabled": false,
+      "source": "/absolute/path/to/docs",
+      "target": "/home/ai/docs",
+      "readonly": true
+    }
+  ]
+}
